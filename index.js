@@ -1,81 +1,101 @@
-const express = require('express')
-const app = express()
-const cors = require('cors')
-const PORT = process.env.PORT || 3000
+const express = require("express");
+const cors = require("cors");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
-require('dotenv').config()
-console.log(process.env.DB_PASSWORD)
-console.log(process.env.DB_User)
+require("dotenv").config();
 
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// middleware
-app.use(express.json())
-app.use(cors)
+// Middleware
+app.use(express.json());
+app.use(cors()); // <-- Fixed
 
-// user: akrmh
-// password: akrmh55555
-
-
-const { MongoClient, ServerApiVersion } = require('mongodb');
-const uri = `mongodb+srv://${process.env.DB_User}:${process.env.DB_PASSWORD}@job-portal.9orfv.mongodb.net/?retryWrites=true&w=majority&appName=Job-Portal`
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+// MongoDB Connection
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@job-portal.9orfv.mongodb.net/?retryWrites=true&w=majority&appName=Job-Portal`;
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
+  },
+});
+
+// Connect to MongoDB once
+async function connectDB() {
+  try {
+    await client.connect();
+    console.log("Connected to MongoDB");
+  } catch (error) {
+    console.error("MongoDB Connection Error:", error);
+  }
+}
+connectDB();
+
+const db = client.db("mernJobPortal");
+const jobsCollections = db.collection("demoJobs");
+
+// POST a job
+app.post("/post-job", async (req, res) => {
+  try {
+    const body = req.body;
+    body.createdAt = new Date();
+    const result = await jobsCollections.insertOne(body);
+
+    if (result.insertedId) {
+      return res.status(200).json(result);
+    } else {
+      return res.status(400).json({ message: "Failed to insert job" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
   }
 });
 
-async function run() {
+// GET all jobs
+app.get("/all-jobs", async (req, res) => {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-
-    
-    // create DB
-    const db = client.db("mernJobPortal")
-    const jobsCollections = db.collection("demoJobs")
-
-    // post a job
-
-    app.post("/post-job", async(req, res) => {
-        const body = req.body;
-        body.createAt = new Date();
-        // console.log(body)
-        const result = await jobsCollections.insertOne(body);
-        if(result.insertedId){
-            return res.status(200).send(result);
-        }else{
-            return res.status(404).send({
-                message: "can not insert try again later",
-                status: false
-            })
-        }
-    })
-
-    // get all jobs
-    app.get("/all-jobs", async(req, res) => {
-        const jobs = await jobsCollections.find({}).toArray()
-        res.send(jobs)
-    })
-
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+    const jobs = await jobsCollections.find({}).toArray();
+    res.json(jobs);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
   }
-}
-run().catch(console.dir);
+});
 
+// Get sigle job by id
+app.get("/all-jobs/:id", async (req, res) => {
+  try {
+    const id = req.params.id
+    const job = await jobsCollections.findOne({
+      _id: new ObjectId(id)
+    })
+    res.send(job);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+});
 
-app.get('/',(req, res) => {
-  res.send('Hello World')
+//Get jobs by email
+app.get("/myJobs/:email", async(req, res) => {
+  // console.log(req.params.email)
+  const jobs = await jobsCollections.find({postedBy: req.params.email}).toArray();
+  res.send(jobs)
 })
 
+// Delete a job
+app.delete("/job/:id", async(req,res) => {
+  const id = req.params.id
+  const filter = {_id: new ObjectId(id)}
+  const result = await jobsCollections.deleteOne(filter)
+  res.send(result)
+})
+
+// Home route
+app.get("/", (req, res) => {
+  res.send("Hello World");
+});
+
+// Start server
 app.listen(PORT, () => {
-    console.log(`Server is running in port 3000`)
-})
+  console.log(`Server is running on port ${PORT}`);
+});
