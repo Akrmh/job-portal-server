@@ -14,7 +14,7 @@ const authMiddleware = require('../../middleware/authMiddleware');
 const router = express.Router();
 
 // Get users route 
-router.get('/users',authMiddleware, getUsersController);
+router.get('/users', getUsersController);
 
 // Get user route
 router.get('/users/:userId', getUserController);
